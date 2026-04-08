@@ -4,6 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"os/exec"
+	"strings"
+	"time"
 
 	"github.com/browserutils/kooky"
 	_ "github.com/browserutils/kooky/browser/brave"
@@ -12,12 +16,74 @@ import (
 	_ "github.com/browserutils/kooky/browser/edge"
 )
 
-// GetGitHubSession returns the user_session cookie for github.com.
-// It searches Chrome, Brave, Edge, and Chromium (via kooky's registered
-// finders), returning the cookie from the first browser that has one.
-func GetGitHubSession() (*http.Cookie, error) {
-	ctx := context.Background()
+const onePasswordCookieRefEnv = "GH_IMAGE_OP_COOKIE_REF"
 
+var opRead = readOP
+
+// GetGitHubSession returns the user_session cookie for github.com.
+// It first checks 1Password via the op CLI, then falls back to Chrome, Brave,
+// Edge, and Chromium (via kooky's registered finders).
+func GetGitHubSession() (*http.Cookie, error) {
+	opCookie, opErr := getGitHubSessionFrom1Password()
+	if opErr == nil {
+		return opCookie, nil
+	}
+
+	browserCookie, browserErr := getGitHubSessionFromBrowser()
+	if browserErr == nil {
+		return browserCookie, nil
+	}
+
+	if opErr != nil {
+		return nil, fmt.Errorf("%v; fallback failed: %w", opErr, browserErr)
+	}
+
+	return nil, browserErr
+}
+
+func getGitHubSessionFrom1Password() (*http.Cookie, error) {
+	ref := strings.TrimSpace(os.Getenv(onePasswordCookieRefEnv))
+	if ref == "" {
+		return nil, fmt.Errorf("%s is not set", onePasswordCookieRefEnv)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	value, err := opRead(ctx, ref)
+	if err != nil {
+		return nil, fmt.Errorf("reading GitHub session cookie from 1Password: %w", err)
+	}
+
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, fmt.Errorf("reading GitHub session cookie from 1Password: empty secret")
+	}
+
+	return &http.Cookie{
+		Name:     "user_session",
+		Value:    value,
+		Domain:   "github.com",
+		Path:     "/",
+		Secure:   true,
+		HttpOnly: true,
+	}, nil
+}
+
+func readOP(ctx context.Context, ref string) (string, error) {
+	output, err := exec.CommandContext(ctx, "op", "read", ref).CombinedOutput()
+	if err != nil {
+		message := strings.TrimSpace(string(output))
+		if message != "" {
+			return "", fmt.Errorf("%w: %s", err, message)
+		}
+		return "", err
+	}
+	return string(output), nil
+}
+
+func getGitHubSessionFromBrowser() (*http.Cookie, error) {
+	ctx := context.Background()
 	cookies, err := kooky.ReadCookies(ctx,
 		kooky.Valid,
 		kooky.DomainHasSuffix("github.com"),
