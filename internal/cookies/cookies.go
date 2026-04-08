@@ -34,11 +34,7 @@ func GetGitHubSession() (*http.Cookie, error) {
 		return browserCookie, nil
 	}
 
-	if opErr != nil {
-		return nil, fmt.Errorf("%v; fallback failed: %w", opErr, browserErr)
-	}
-
-	return nil, browserErr
+	return nil, fmt.Errorf("%v; fallback failed: %w", opErr, browserErr)
 }
 
 func getGitHubSessionFrom1Password() (*http.Cookie, error) {
