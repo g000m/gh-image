@@ -26,6 +26,16 @@ const (
 var (
 	userConfigDir = os.UserConfigDir
 
+	// discoverStoresFn is the function used to discover cookie stores. It is a
+	// package-level var so tests can replace it to assert the discovery path is
+	// (or is not) exercised without touching the real browser cookie DBs.
+	discoverStoresFn = discoverStores
+
+	// readFromDirectSourceFn is the function used to read cookies from a known
+	// source directly. It is a package-level var so tests can inject a fake
+	// implementation without needing real Chromium cookie DBs or keychain access.
+	readFromDirectSourceFn = readFromDirectSource
+
 	supportedBrowsers = map[string]int{
 		"chrome":   0,
 		"brave":    1,
@@ -97,7 +107,25 @@ func GetGitHubSession(opts Options) (*http.Cookie, error) {
 		return cookie, nil
 	}
 
-	stores, discoveryErr := discoverStores(ctx)
+	// Happy path: if no browser/profile override is active, try the remembered
+	// source directly before doing any store discovery. This avoids the extra
+	// keychain prompt that store traversal triggers on macOS.
+	if opts.Browser == "" && opts.Profile == "" {
+		remembered, ok, err := loadRememberedSource()
+		if err != nil {
+			return nil, err
+		}
+		if ok && remembered.CookieDB != "" {
+			if cookie, source, rerr := readFromDirectSourceFn(ctx, remembered, filters); rerr == nil {
+				_ = saveRememberedSource(source)
+				return cookie, nil
+			}
+			// Stale remembered source (file moved, browser re-installed, etc.) —
+			// fall through to discovery silently.
+		}
+	}
+
+	stores, discoveryErr := discoverStoresFn(ctx)
 	defer closeStores(stores)
 
 	if len(stores) == 0 {
