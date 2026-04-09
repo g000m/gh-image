@@ -13,8 +13,8 @@ import (
 const usage = "Usage: gh image [--repo owner/repo] [--browser name] [--profile name] [--cookie-db path] <image-path>..."
 
 type cliOptions struct {
-	repoFlag string
-	repoSet  bool
+	repoFlag   string
+	repoSet    bool
 	imagePaths []string
 	cookieOpts cookies.Options
 }

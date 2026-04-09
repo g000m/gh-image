@@ -11,11 +11,11 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/browserutils/kooky"
 	bravebrowser "github.com/browserutils/kooky/browser/brave"
 	chromebrowser "github.com/browserutils/kooky/browser/chrome"
 	chromiumbrowser "github.com/browserutils/kooky/browser/chromium"
 	edgebrowser "github.com/browserutils/kooky/browser/edge"
-	"github.com/browserutils/kooky"
 )
 
 const (
@@ -35,9 +35,9 @@ var (
 )
 
 type Options struct {
-	Browser               string
-	Profile               string
-	CookieDB              string
+	Browser                string
+	Profile                string
+	CookieDB               string
 	ForgetRememberedSource bool
 }
 
