@@ -22,12 +22,12 @@ type cliOptions struct {
 func main() {
 	opts, err := parseArgs(os.Args[1:])
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		if err != errHelp {
-			fmt.Fprintf(os.Stderr, "Run 'gh image --help' for usage.\n")
-			os.Exit(1)
+		if err == errHelp {
+			return
 		}
-		return
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Run 'gh image --help' for usage.\n")
+		os.Exit(1)
 	}
 
 	// Validate image paths early

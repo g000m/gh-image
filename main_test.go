@@ -43,6 +43,13 @@ func TestParseArgsRejectsDuplicateBrowser(t *testing.T) {
 	}
 }
 
+func TestParseArgsHelp(t *testing.T) {
+	_, err := parseArgs([]string{"--help"})
+	if err != errHelp {
+		t.Fatalf("err = %v, want errHelp", err)
+	}
+}
+
 func TestParseArgsRequiresImagePath(t *testing.T) {
 	_, err := parseArgs([]string{"--browser", "chrome"})
 	if err == nil || err.Error() != usage {
