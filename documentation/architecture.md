@@ -32,7 +32,7 @@ gh-image/
 
 ### 1. Cookie Extraction (`internal/cookies/`)
 
-Reads the GitHub `user_session` cookie from the local Chrome cookie database.
+Reads the GitHub `user_session` cookie from supported Chromium-family browser cookie databases.
 
 **Dependency:** [`browserutils/kooky`](https://github.com/browserutils/kooky) — a pure Go library that handles:
 - Locating Chrome's SQLite cookie database on disk
@@ -43,13 +43,24 @@ Reads the GitHub `user_session` cookie from the local Chrome cookie database.
 **Interface:**
 
 ```go
+type Options struct {
+    Browser                string
+    Profile                string
+    CookieDB               string
+    ForgetRememberedSource bool
+}
+
 // GetGitHubSession returns the user_session cookie for github.com.
-// It searches Chrome, Brave, Edge, and Chromium in order, returning
-// the cookie from the first browser with a valid GitHub session.
-func GetGitHubSession() (*http.Cookie, error)
+// It first tries any remembered browser/profile/path from the local
+// gh-image config, then falls back to scanning supported browsers.
+// Explicit options restrict lookup to a specific browser, profile,
+// or cookie DB path.
+func GetGitHubSession(opts Options) (*http.Cookie, error)
 ```
 
-The only cookie needed from the browser is `user_session`. The `__Host-user_session_same_site` cookie is a duplicate of `user_session` with a stricter SameSite policy — it has the same value, so the client synthesizes it from `user_session` rather than reading it separately. The `_gh_sess` cookie rotates with each GitHub response and is managed automatically by the HTTP client's cookie jar — it does not need to be read from the browser's cookie store. Using `kooky` means we don't maintain any crypto or Keychain code ourselves.
+The only cookie needed from the browser is `user_session`. The `__Host-user_session_same_site` cookie is a duplicate of `user_session` with a stricter SameSite policy — it has the same value, so the client synthesizes it from `user_session` rather than reading it separately. The `_gh_sess` cookie rotates with each GitHub response and is managed automatically by the HTTP client's cookie jar — it does not need to be read from the browser's cookie store.
+
+To reduce friction, the package remembers the last successful cookie source in the user's config directory and prefers that exact browser/profile/path on the next run. This caches source selection only; it does **not** persist the browser's Safe Storage secret or the GitHub session cookie itself. Using `kooky` means we still do not maintain any crypto or Keychain code ourselves.
 
 ### 2. Repository Resolution (`internal/repo/`)
 
@@ -126,7 +137,8 @@ Handles the multipart form construction for the S3 presigned upload. Separated f
                            ▼
                 ┌──────────────────────┐
                 │   Cookie Extraction  │
-                │   (kooky + Keychain) │
+                │ (kooky + source cache│
+                │    + Keychain)       │
                 └──────────┬───────────┘
                            │ user_session
                            ▼
@@ -208,7 +220,7 @@ git push --tags
 
 ## Platform Notes
 
-- **macOS:** Fully supported. A Keychain prompt may appear on first use to authorize access to the browser's cookie encryption key. Click "Always Allow" to avoid repeated prompts.
+- **macOS:** Fully supported. A Keychain prompt may appear when reading the selected browser cookie DB. Remembering the last successful cookie source reduces repeated scanning, but macOS authorization persistence is still controlled by Keychain access policy.
 - **Linux:** kooky supports Linux (GNOME Keyring / kwallet for Chrome key storage). The upload flow is platform-agnostic. Main gap is testing.
 - **Windows:** kooky supports Windows (DPAPI for Chrome cookie decryption). Binaries are built for Windows amd64. Main gap is testing.
 

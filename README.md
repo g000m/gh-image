@@ -17,6 +17,12 @@ gh image img1.png img2.png
 
 # Explicit repo (when not in a git workspace or targeting a different repo)
 gh image screenshot.png --repo owner/repo
+
+# Restrict cookie lookup to a known browser/profile
+gh image screenshot.png --browser chrome --profile "Profile 1"
+
+# Read from an explicit Chromium cookie DB
+gh image screenshot.png --browser chrome --cookie-db "$HOME/Library/Application Support/Google/Chrome/Profile 1/Cookies"
 ```
 
 Output:
@@ -58,7 +64,17 @@ See [documentation/github-image-upload-flow.md](documentation/github-image-uploa
 
 ## Authentication
 
-No tokens or OAuth setup required. The tool reads your `user_session` cookie directly from your browser's cookie database on disk. On macOS, a Keychain prompt may appear on first use to authorize access to the browser's encryption key.
+No tokens or OAuth setup required. The tool reads your `user_session` cookie directly from your browser's cookie database on disk.
+
+To reduce repeated prompts, `gh-image` remembers the last successful cookie source (browser, profile, and cookie DB path) in your user config directory and tries that source first on the next run before scanning all supported browsers.
+
+On macOS, a Keychain prompt may still appear when the selected browser cookie DB needs access to the browser's Safe Storage key. `gh-image` does not persist or bypass that browser decryption credential; it only remembers which browser/profile/path to try first.
+
+Useful flags:
+- `--browser chrome|brave|edge|chromium` to restrict lookup to one browser
+- `--profile "Profile 1"` to restrict lookup to one profile
+- `--cookie-db /absolute/path/to/Cookies` to use a specific Chromium cookie DB
+- `--forget-cookie-source` to clear the remembered source before lookup
 
 Supported browsers:
 - Chrome
@@ -81,3 +97,4 @@ Supported platforms:
 - This tool uses an undocumented GitHub internal API that could change without notice.
 - The `uploadToken` required for uploads is only available to users with write access to the target repository.
 - Either `--repo` must be provided or the tool must be run from within a git workspace with a GitHub remote.
+- Remembering the cookie source reduces scanning and repeated prompts, but it does not make macOS Keychain authorization persist across runs unless you change Keychain access policy yourself.
